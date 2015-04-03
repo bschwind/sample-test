@@ -1,4 +1,17 @@
-# Sample Test for new Code-Check
+# bschwind - Sample Test for new Code-Check
+
+## Run + Test
+
+``` bash
+git clone ...
+cd sample-test
+npm install
+node app/event-reserve.js
+
+(in another shell)
+cd sample-test
+mocha spec/
+```
 
 Code-Check is a web service which we are going to develop in 2015.
 It provides users the system to make various coding tests and the interface to solve tests.
