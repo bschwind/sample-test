@@ -23,6 +23,7 @@
     "mysql": "^2.6.1",
     "express": "4.x",
     "body-parser": "*",
-    "jsonwebtoken": "4.2.2"
+    "jsonwebtoken": "4.2.2",
+    "bluebird": "*"
   }
 }

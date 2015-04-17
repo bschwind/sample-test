@@ -16,23 +16,22 @@ app.post("/api/auth/login", function(req, res) {
 	var email = req.body.email;
 	var password = req.body.password;
 
-	eventDB.login(email, password, function(result) {
-		if (result.error) {
-			data.code = 500;
-			res.json(data);
-			return;
-		}
-
+	eventDB.login(email, password).then(function(user) {
 		data = {
 			code: 200,
-			token: result.user.token,
+			token: user.token,
 			user: {
-				id: result.user.id,
-				name: result.user.name,
-				group_id: result.user.group_id
+				id: user.id,
+				name: user.name,
+				group_id: user.group_id
 			}
 		};
 
+		res.json(data);
+	})
+	.catch(function(e) {
+		// Unsuccessful login
+		data.code = 500;
 		res.json(data);
 	});
 });
@@ -44,21 +43,20 @@ app.get("/api/users/events", function(req, res) {
 	var offset = req.query.offset;
 	var limit = req.query.limit;
 
-	if (!from) {
+	if (!from || limit === "0") {
 		res.sendStatus(400);
 		return;
 	}
 
-	eventDB.listEvents(from, offset, limit, function(result) {
-		if (result.error) {
-			res.sendStatus(400);
-			return;
-		}
-
-		data.events = result.events;
+	eventDB.listEvents(from, offset, limit).then(function(events) {
+		data.events = events;
 		data.code = 200;
 
 		res.json(data);
+	})
+	.catch(function(e) {
+		console.log(e);
+		res.sendStatus(400);
 	});
 });
 
@@ -93,38 +91,37 @@ app.post("/api/users/reserve", function(req, res) {
 		return;
 	}
 
-	eventDB.reservationExists(decoded.user_id, event_id, function(exists) {
+	eventDB.reservationExists(decoded.user_id, event_id).then(function(exists) {
 		if (reserve === "true") {
 			if (exists) {
 				// Reservation already exists
 				data.code = 501;
 				data.message = "Already reserved";
 				res.json(data);
-				return;
 			} else {
 				// Make a new reservation
-				eventDB.createReservation(decoded.user_id, event_id, function() {
+				return eventDB.createReservation(decoded.user_id, event_id).then(function() {
 					data.code = 200;
 					res.json(data);
-					return;
 				});
 			}
 		} else {
 			if (exists) {
 				// Cancel the reservation
-				eventDB.cancelReservation(decoded.user_id, event_id, function() {
+				return eventDB.cancelReservation(decoded.user_id, event_id).then(function() {
 					data.code = 200;
 					res.json(data);
-					return;
 				});
 			} else {
 				// Can't cancel a non-existent reservation
 				data.code = 502;
 				data.message = "Not reserved";
 				res.json(data);
-				return;
 			}
 		}
+	})
+	.catch(function(e) {
+		console.log(e);
 	});
 });
 
@@ -136,7 +133,7 @@ app.post("/api/companies/events", function(req, res) {
 	var offset = req.body.offset;
 	var limit = req.body.limit;
 
-	if (!token || !from) {
+	if (!token || !from || limit === "0") {
 		res.sendStatus(400);
 		return;
 	}
@@ -158,17 +155,14 @@ app.post("/api/companies/events", function(req, res) {
 		return;
 	}
 
-	eventDB.listCompanyEvents(decoded.user_id, from, limit, offset, function(result) {
-		if (result.error) {
-			res.sendStatus(400);
-			return;
-		}
-
-		data.events = result.events;
+	eventDB.listCompanyEvents(decoded.user_id, from, limit, offset).then(function(events) {
+		data.events = events;
 		data.code = 200;
 
 		res.json(data);
-		return;
+	})
+	.catch(function(e) {
+		console.log(e);
 	});
 });
 
