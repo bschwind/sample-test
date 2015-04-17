@@ -6,6 +6,8 @@
 git clone ...
 cd sample-test
 npm install
+# If you don't already have MySQL running:
+#mysql.server start
 node app/event-reserve.js
 
 (in another shell)
