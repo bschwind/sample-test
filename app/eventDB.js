@@ -21,27 +21,17 @@ var connectionPool = mysql.createPool({
 	dateStrings : true // We want dates returned as strings, not JS Date objects
 });
 
-module.exports.login = function(email, password) {
-	var queryString = "select * from users where email = ? AND password = sha1(?)";
-
+// Returns a promise with the results of the query
+function executeQuery(query, parameters) {
 	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [email, password]).spread(function(rows) {
-			var first = rows[0];
-
-			var user = {
-				id: first.id,
-				name: first.name,
-				group_id: first.group_id,
-				token: jwt.sign({user_id: first.id, group_id: first.group_id}, secretKey)
-			};
-
-			return Promise.resolve(user);
+		return connection.queryAsync(query, parameters).spread(function(rows) {
+			return rows;
 		})
 		.finally(function() {
 			connection.release();
 		});
 	});
-};
+}
 
 function generateLimitOffsetString(limit, offset) {
 	var limitString = "";
@@ -69,6 +59,22 @@ function generateLimitOffsetString(limit, offset) {
 	}
 
 	return limitString + offsetString;
+}
+
+module.exports.login = function(email, password) {
+	var queryString = "select * from users where email = ? AND password = sha1(?)";
+
+	return executeQuery(queryString, [email, password]).then(function(rows) {
+		var first = rows[0];
+		var user = {
+			id: first.id,
+			name: first.name,
+			group_id: first.group_id,
+			token: jwt.sign({user_id: first.id, group_id: first.group_id}, secretKey)
+		};
+
+		return user;
+	});
 };
 
 module.exports.listEvents = function(from, offset, limit) {
@@ -79,93 +85,65 @@ module.exports.listEvents = function(from, offset, limit) {
 			where start_date >= ? \
 			ORDER BY start_date" + limitOffsetString;
 
-	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [dateFormat, from]).spread(function(rows) {
-			var events = rows.map(function(x) {
-				return {
-					id: x.id,
-					user_id: x.user_id,
-					name: x.name,
-					start_date: x.start_date
-				};
-			});
-
-			return Promise.resolve(events);
-		})
-		.finally(function() {
-			connection.release();
+	return executeQuery(queryString, [dateFormat, from]).then(function(rows) {
+		var events = rows.map(function(x) {
+			return {
+				id: x.id,
+				user_id: x.user_id,
+				name: x.name,
+				start_date: x.start_date
+			};
 		});
+
+		return events;
 	});
 };
 
 module.exports.reservationExists = function(user_id, event_id) {
 	var queryString = "SELECT 1 from attends where user_id = ? AND event_id = ?";
 
-	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [user_id, event_id]).spread(function(rows) {
-			if (rows && rows.length > 0) {
-				return Promise.resolve(true);
-			} else {
-				return Promise.resolve(false);
-			}
-		})
-		.finally(function() {
-			connection.release();
-		});
+	return executeQuery(queryString, [user_id, event_id]).then(function(rows) {
+		if (rows && rows.length > 0) {
+			return true
+		} else {
+			return false;
+		}
 	});
 };
 
 module.exports.cancelReservation = function(user_id, event_id) {
 	var queryString = "DELETE from attends where user_id = ? AND event_id = ?";
 
-	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [user_id, event_id]).spread(function(rows) {
-			return Promise.resolve();
-		})
-		.finally(function() {
-			connection.release();
-		});
-	});
+	return executeQuery(queryString, [user_id, event_id]);
 };
 
 module.exports.createReservation = function(user_id, event_id) {
 	var queryString = "INSERT INTO attends (user_id, event_id, reserved_at) VALUES (?, ?, ?)";
 
-	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [user_id, event_id, new Date()]).spread(function(rows) {
-			return Promise.resolve();
-		})
-		.finally(function() {
-			connection.release();
-		});
-	});
+	return executeQuery(queryString, [user_id, event_id, new Date()]);
 };
 
 module.exports.listCompanyEvents = function(user_id, from, limit, offset) {
 	var limitOffsetString = generateLimitOffsetString(limit, offset);
 
-	var queryString = "select e.id, e.user_id, e.name, date_format(e.start_date, ?) as start_date, (select count(user_id) from attends a where a.event_id = e.id) as num_people \
+	var queryString = "select e.id, e.user_id, e.name, date_format(e.start_date, ?) as start_date, \
+			(select count(user_id) from attends a where a.event_id = e.id) as num_people \
 			from events e \
 			WHERE e.start_date >= ? \
 			AND e.user_id = ? \
 			ORDER BY start_date" + limitOffsetString;
 
-	return connectionPool.getConnectionAsync().then(function(connection) {
-		return connection.queryAsync(queryString, [dateFormat, from, user_id]).spread(function(rows) {
-			var events = rows.map(function(x) {
-				return {
-					id: x.id,
-					name: x.name,
-					start_date: x.start_date,
-					number_of_attendees: x.num_people
-				};
-			});
-
-			return Promise.resolve(events);
-		})
-		.finally(function() {
-			connection.release();
+	return executeQuery(queryString, [dateFormat, from, user_id]).then(function(rows) {
+		var events = rows.map(function(x) {
+			return {
+				id: x.id,
+				name: x.name,
+				start_date: x.start_date,
+				number_of_attendees: x.num_people
+			};
 		});
+
+		return events;
 	});
 };
 
